@@ -1,0 +1,437 @@
+---
+description: Best practices for building telegram bot
+globs: apps/telegram/**/*.ts
+alwaysApply: false
+---
+# Building Telegram Bots with Telegraf, Redis, and Bun
+
+This guide outlines best practices for building Telegram bots using Telegraf, Redis for session storage, and Bun's HTTP server API, with ElysiaJS Eden for backend API calls.
+
+## Project Setup
+
+### 1. Initialize Project
+
+```bash
+mkdir telegram-bot
+cd telegram-bot
+bun init
+```
+
+### 2. Install Dependencies
+
+```bash
+bun add telegraf telegraf-session-redis redis @elysiajs/eden elysia
+```
+
+## Project Structure
+
+```
+telegram-bot/
+├── src/
+│   ├── bot/
+│   │   ├── commands/
+│   │   │   ├── start.ts
+│   │   │   └── help.ts
+│   │   ├── middlewares/
+│   │   │   ├── auth.ts
+│   │   │   └── logger.ts
+│   │   ├── scenes/
+│   │   │   └── registration.ts
+│   │   └── index.ts
+│   ├── api/
+│   │   ├── client.ts
+│   │   └── routes.ts
+│   ├── config.ts
+│   └── index.ts
+├── package.json
+└── tsconfig.json
+```
+
+## Configuration
+
+Create a `src/config.ts` file:
+
+```typescript
+export const config = {
+  telegram: {
+    token: process.env.TELEGRAM_BOT_TOKEN || "",
+  },
+  redis: {
+    host: process.env.REDIS_HOST || "localhost",
+    port: parseInt(process.env.REDIS_PORT || "6379"),
+    password: process.env.REDIS_PASSWORD,
+  },
+  api: {
+    baseUrl: process.env.API_BASE_URL || "http://localhost:3000",
+  },
+};
+```
+
+## Setting Up Redis Session Storage
+
+Create the Redis session setup in `src/bot/index.ts`:
+
+```typescript
+import { Telegraf, session } from "telegraf";
+import { RedisSession } from "telegraf-session-redis";
+import { config } from "../config";
+
+// Initialize bot with token
+const bot = new Telegraf(config.telegram.token);
+
+// Configure Redis session storage
+const redisSession = new RedisSession({
+  store: {
+    host: config.redis.host,
+    port: config.redis.port,
+    password: config.redis.password,
+    // TTL in seconds for session, optional
+    ttl: 24 * 60 * 60,
+  },
+});
+
+// Use Redis session middleware
+bot.use(redisSession.middleware());
+
+// Export the bot instance
+export { bot };
+```
+
+## Creating API Client with ElysiaJS Eden
+
+Create `src/api/client.ts`:
+
+```typescript
+import { edenTreaty } from "@elysiajs/eden";
+import { config } from "../config";
+
+// Define your API types
+export type User = {
+  id: number;
+  name: string;
+  email: string;
+};
+
+// Define your API routes
+export type AppRouter = {
+  "/users": {
+    get: {
+      query: { id?: number };
+      response: User[];
+    };
+    post: {
+      body: Omit<User, "id">;
+      response: User;
+    };
+  };
+  "/users/:id": {
+    get: {
+      params: { id: number };
+      response: User;
+    };
+    put: {
+      params: { id: number };
+      body: Partial<Omit<User, "id">>;
+      response: User;
+    };
+    delete: {
+      params: { id: number };
+      response: { success: boolean };
+    };
+  };
+};
+
+// Create the API client
+export const api = edenTreaty<AppRouter>(config.api.baseUrl);
+```
+
+## Creating Bot Commands
+
+Create `src/bot/commands/start.ts`:
+
+```typescript
+import { Context } from "telegraf";
+import { api } from "../../api/client";
+
+export async function startCommand(ctx: Context) {
+  try {
+    // Get user information from API
+    const users = await api["/users"].get({ query: { id: 1 } });
+
+    if (users.data && users.data.length > 0) {
+      const user = users.data[0];
+      await ctx.reply(`Welcome, ${user.name}! Your Telegram bot is ready.`);
+    } else {
+      await ctx.reply("Welcome! Your Telegram bot is ready.");
+    }
+  } catch (error) {
+    console.error("Error in start command:", error);
+    await ctx.reply("Welcome! Your Telegram bot is ready.");
+  }
+}
+```
+
+## Setting Up Middlewares
+
+Create `src/bot/middlewares/logger.ts`:
+
+```typescript
+import { Context, MiddlewareFn } from "telegraf";
+
+export const loggerMiddleware: MiddlewareFn<Context> = async (ctx, next) => {
+  const start = Date.now();
+
+  // Log incoming message
+  console.log(`Received message from ${ctx.from?.id}: ${ctx.message?.text}`);
+
+  // Call next middleware
+  await next();
+
+  // Log response time
+  const ms = Date.now() - start;
+  console.log(`Response time: ${ms}ms`);
+};
+```
+
+## Registering Commands and Middlewares
+
+Update `src/bot/index.ts`:
+
+```typescript
+import { Telegraf, session } from "telegraf";
+import { RedisSession } from "telegraf-session-redis";
+import { config } from "../config";
+import { startCommand } from "./commands/start";
+import { loggerMiddleware } from "./middlewares/logger";
+
+// Initialize bot with token
+const bot = new Telegraf(config.telegram.token);
+
+// Configure Redis session storage
+const redisSession = new RedisSession({
+  store: {
+    host: config.redis.host,
+    port: config.redis.port,
+    password: config.redis.password,
+    ttl: 24 * 60 * 60,
+  },
+});
+
+// Use Redis session middleware
+bot.use(redisSession.middleware());
+
+// Use logger middleware
+bot.use(loggerMiddleware);
+
+// Register commands
+bot.command("start", startCommand);
+bot.command("help", (ctx) => ctx.reply("How can I help you?"));
+
+// Handle other message types
+bot.on("text", (ctx) => {
+  ctx.reply(`You said: ${ctx.message.text}`);
+});
+
+// Export the bot instance
+export { bot };
+```
+
+## Creating HTTP Server with Bun
+
+Create `src/index.ts`:
+
+```typescript
+import { Elysia } from "elysia";
+import { bot } from "./bot";
+import { config } from "./config";
+
+// Start the bot
+bot
+  .launch()
+  .then(() => {
+    console.log("Bot started successfully");
+  })
+  .catch((err) => {
+    console.error("Failed to start bot:", err);
+  });
+
+// Create HTTP server with Elysia
+const app = new Elysia()
+  .get("/", () => "Telegram Bot Server is running")
+  .get("/health", () => ({ status: "ok" }))
+  .listen(process.env.PORT || 3000);
+
+console.log(
+  `HTTP server is running at ${app.server?.hostname}:${app.server?.port}`
+);
+
+// Enable graceful stop
+process.once("SIGINT", () => bot.stop("SIGINT"));
+process.once("SIGTERM", () => bot.stop("SIGTERM"));
+```
+
+## Webhook Setup (Alternative to Long Polling)
+
+For production environments, you might want to use webhooks instead of long polling:
+
+```typescript
+// In src/index.ts
+import { Elysia } from "elysia";
+import { bot } from "./bot";
+import { config } from "./config";
+
+const app = new Elysia()
+  .get("/", () => "Telegram Bot Server is running")
+  .get("/health", () => ({ status: "ok" }))
+  .post("/webhook", async (context) => {
+    // Pass the update to the bot
+    await bot.handleUpdate(context.body);
+    return { ok: true };
+  })
+  .listen(process.env.PORT || 3000);
+
+// Set webhook
+const webhookUrl = `${process.env.PUBLIC_URL}/webhook`;
+bot.telegram
+  .setWebhook(webhookUrl)
+  .then(() => {
+    console.log(`Webhook set to ${webhookUrl}`);
+  })
+  .catch((err) => {
+    console.error("Failed to set webhook:", err);
+  });
+
+console.log(
+  `HTTP server is running at ${app.server?.hostname}:${app.server?.port}`
+);
+
+// Enable graceful stop
+process.once("SIGINT", () => bot.telegram.deleteWebhook());
+process.once("SIGTERM", () => bot.telegram.deleteWebhook());
+```
+
+## Best Practices
+
+1. **Environment Variables**: Store sensitive information like API tokens in environment variables.
+
+2. **Error Handling**: Implement proper error handling in all API calls and bot commands.
+
+3. **Logging**: Use a structured logging system for debugging and monitoring.
+
+4. **Rate Limiting**: Implement rate limiting to prevent abuse of your bot.
+
+5. **Session Management**: Use Redis session storage for scalability and persistence.
+
+6. **Modular Structure**: Organize your code into modules for better maintainability.
+
+7. **TypeScript**: Use TypeScript for type safety and better developer experience.
+
+8. **Testing**: Write unit and integration tests for your bot commands and API calls.
+
+## Example: Creating a Scene for Multi-step Interactions
+
+Create `src/bot/scenes/registration.ts`:
+
+```typescript
+import { Scenes, Composer } from "telegraf";
+import { api } from "../../api/client";
+
+// Define scene context type
+interface RegistrationSceneContext extends Scenes.SceneContext {
+  session: {
+    name?: string;
+    email?: string;
+  };
+}
+
+// Create a scene for user registration
+export const registrationScene =
+  new Scenes.WizardScene<RegistrationSceneContext>(
+    "registration",
+    // Step 1: Ask for name
+    async (ctx) => {
+      await ctx.reply("Please enter your name:");
+      return ctx.wizard.next();
+    },
+    // Step 2: Save name and ask for email
+    async (ctx) => {
+      if (!ctx.message || !("text" in ctx.message)) {
+        await ctx.reply("Please enter a valid name as text.");
+        return;
+      }
+
+      // Save name to session
+      ctx.session.name = ctx.message.text;
+
+      await ctx.reply("Please enter your email:");
+      return ctx.wizard.next();
+    },
+    // Step 3: Save email and complete registration
+    async (ctx) => {
+      if (!ctx.message || !("text" in ctx.message)) {
+        await ctx.reply("Please enter a valid email as text.");
+        return;
+      }
+
+      // Save email to session
+      ctx.session.email = ctx.message.text;
+
+      try {
+        // Register user via API
+        const response = await api["/users"].post({
+          body: {
+            name: ctx.session.name!,
+            email: ctx.session.email!,
+          },
+        });
+
+        if (response.data) {
+          await ctx.reply(
+            `Registration complete! Welcome, ${response.data.name}!`
+          );
+        } else {
+          await ctx.reply("Registration failed. Please try again later.");
+        }
+      } catch (error) {
+        console.error("Registration error:", error);
+        await ctx.reply("Registration failed. Please try again later.");
+      }
+
+      // End the scene
+      return ctx.scene.leave();
+    }
+  );
+
+// Add command to cancel registration
+registrationScene.command("cancel", async (ctx) => {
+  await ctx.reply("Registration cancelled.");
+  return ctx.scene.leave();
+});
+```
+
+## Deploying Your Bot
+
+1. **Environment Setup**:
+
+   ```bash
+   # Create .env file
+   echo "TELEGRAM_BOT_TOKEN=your_token_here" > .env
+   echo "REDIS_HOST=localhost" >> .env
+   echo "REDIS_PORT=6379" >> .env
+   echo "API_BASE_URL=http://your-api-url" >> .env
+   ```
+
+2. **Build for Production**:
+
+   ```bash
+   bun build ./src/index.ts --outdir ./dist
+   ```
+
+3. **Run in Production**:
+   ```bash
+   NODE_ENV=production bun run ./dist/index.js
+   ```
+
+## Conclusion
+
+This guide provides a solid foundation for building Telegram bots using Telegraf, Redis for session storage, and Bun's HTTP server API, with ElysiaJS Eden for backend API calls. By following these patterns and best practices, you can create scalable, maintainable, and feature-rich Telegram bots.

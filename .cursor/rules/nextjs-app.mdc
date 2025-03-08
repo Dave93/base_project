@@ -1,0 +1,1542 @@
+---
+description: Best Practices for Next.js with App Router
+globs: apps/(web|dashboard)/**/*.(ts|tsx)
+alwaysApply: false
+---
+# Next.js Website Development Rules
+
+## Project Structure and Configuration
+
+### Directory Structure
+
+```
+
+├── app/                    # App router directory
+│   ├── [locale]/          # i18n routing
+│   └── api/               # API routes
+├── messages/              # Translation messages
+├── components/            # React components
+│   ├── ui/               # shadcn/ui components
+│   └── features/         # Feature-specific components
+├── lib/                  # Utility functions and configurations
+├── hooks/               # Custom hooks
+├── types/                # TypeScript type definitions
+├── i18n/                 # i18n configs
+│   ├── routing.ts        # i18n routing config
+│   ├── navigation.ts     # i18n navigation config
+│   ├── request.ts        # i18n request config
+└── styles/             # Global styles and CSS modules
+├── public/                # Static assets
+├── components.json       # shadcn/ui configuration
+├── tailwind.config.ts   # Tailwind configuration
+├── i18n.config.ts      # i18n configuration
+├── motion.config.ts    # Motion for React configuration
+└── tests/             # Test files
+```
+
+### Dependencies
+
+```json
+{
+  "dependencies": {
+    "@elysiajs/eden": "^1.2.0",
+    "@tailwindcss/postcss": "^4.0.9",
+    "@tailwindcss/typography": "^0.5.16",
+    "@tanstack/react-query": "^5.67.1",
+    "@tanstack/react-query-devtools": "^5.67.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "motion": "^12.4.10",
+    "lucide-react": "^0.477.0",
+    "next": "^15.0.0",
+    "next-intl": "^3.26.5",
+    "nuqs": "^2.4.0",
+    "postcss": "^8.5.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.0.2",
+    "tailwindcss": "^4.0.9"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.4",
+    "@types/node": "^22.13.9",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "eslint": "^9.21.0",
+    "eslint-config-next": "^15.2.1",
+    "typescript": "^5.8.2"
+  }
+}
+```
+
+## Internationalization with next-intl
+
+### 1. i18n Configuration
+
+```typescript
+// i18n/routing.ts
+import { defineRouting } from "next-intl/routing";
+import { createNavigation } from "next-intl/navigation";
+
+export const routing = defineRouting({
+  // A list of all locales that are supported
+  locales: ["en", "ru"],
+
+  // Used when no locale matches
+  defaultLocale: "ru",
+});
+
+// i18n/navigation.ts
+import { createNavigation } from "next-intl/navigation";
+import { routing } from "./routing";
+
+export const { Link, redirect, usePathname, useRouter, getPathname } =
+  createNavigation(routing);
+```
+
+### 2. Middleware Configuration
+
+```typescript
+// middleware.ts
+import createMiddleware from "next-intl/middleware";
+import { routing } from "./i18n/routing";
+
+export default createMiddleware(routing);
+
+export const config = {
+  // Match only internationalized pathnames
+  matcher: ["/", "/(de|ru)/:path*"],
+};
+```
+
+### 3. Request Configuration
+
+```typescript
+// i18n/request.ts
+import { getRequestConfig } from "next-intl/server";
+import { routing } from "./routing";
+
+export default getRequestConfig(async ({ requestLocale }) => {
+  // This typically corresponds to the `[locale]` segment
+  let locale = await requestLocale;
+
+  // Ensure that a valid locale is used
+  if (!locale || !routing.locales.includes(locale as any)) {
+    locale = routing.defaultLocale;
+  }
+
+  return {
+    locale,
+    messages: (await import(`../../messages/${locale}.json`)).default,
+    timeZone: "Asia/Tashkent",
+  };
+});
+```
+
+### 4. Root Layout with Providers
+
+```typescript
+// app/[locale]/layout.tsx
+import { NextIntlClientProvider } from "next-intl";
+import { getMessages } from "next-intl/server";
+import { notFound } from "next/navigation";
+import { routing } from "@/i18n/routing";
+
+export default async function LocaleLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode;
+  params: Promise<{ locale: string }>;
+}) {
+  // Ensure that the incoming `locale` is valid
+  const { locale } = await params;
+  if (!routing.locales.includes(locale as any)) {
+    notFound();
+  }
+
+  // Providing all messages to the client
+  // side is the easiest way to get started
+  const messages = await getMessages();
+
+  return (
+    <html lang={locale}>
+      <body>
+        <NextIntlClientProvider messages={messages} timeZone="Asia/Tashkent">
+          {children}
+        </NextIntlClientProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+### 5. Navigation Components
+
+```typescript
+// components/Navigation.tsx
+"use client";
+
+import { usePathname } from "next-intl/client";
+import { Link, useRouter } from "@/navigation";
+import { useTranslations } from "next-intl";
+
+export function Navigation() {
+  const t = useTranslations("Navigation");
+  const pathname = usePathname();
+  const router = useRouter();
+
+  return (
+    <nav>
+      <Link href="/" className={pathname === "/" ? "active" : ""}>
+        {t("home")}
+      </Link>
+      <Link href="/about" className={pathname === "/about" ? "active" : ""}>
+        {t("about")}
+      </Link>
+      <select
+        onChange={(event) => {
+          router.replace(pathname, { locale: event.target.value });
+        }}
+      >
+        <option value="en">English</option>
+        <option value="de">Deutsch</option>
+        <option value="es">Español</option>
+      </select>
+    </nav>
+  );
+}
+```
+
+### 6. Using Translations in Pages
+
+```typescript
+// app/[locale]/page.tsx
+import { useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
+
+export async function generateMetadata({ params }) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "Metadata" });
+
+  return {
+    title: t("title"),
+  };
+}
+
+export default function Index() {
+  const t = useTranslations("Index");
+
+  return (
+    <div>
+      <h1>{t("title")}</h1>
+      <p>{t("description")}</p>
+    </div>
+  );
+}
+```
+
+### 7. Message Format Examples
+
+```json
+// messages/en.json
+{
+  "Index": {
+    "title": "Welcome to {site}",
+    "description": "This site has {count, plural, =0 {no users} =1 {one user} other {# users}}",
+    "lastUpdate": "Last updated: {date, date, medium} at {date, time, short}",
+    "price": "Price: {amount, number, currency}"
+  },
+  "Navigation": {
+    "home": "Home",
+    "about": "About",
+    "language": "Language: {lang}"
+  }
+}
+```
+
+## React 19 and Next.js 15 Features
+
+### 1. React 19 Hooks and Patterns
+
+```typescript
+// app/components/OptimizedList.tsx
+"use client";
+
+import { use, useOptimistic, useFormStatus } from "react";
+import { experimental_useEffectEvent as useEffectEvent } from "react";
+
+interface Item {
+  id: string;
+  text: string;
+}
+
+export function OptimizedList({ items }: { items: Item[] }) {
+  const [optimisticItems, addOptimisticItem] = useOptimistic(
+    items,
+    (state, newItem: Item) => [...state, newItem]
+  );
+
+  // New React 19 effect event
+  const onScroll = useEffectEvent((position: number) => {
+    // Handle scroll with access to latest props/state
+    console.log(position, optimisticItems.length);
+  });
+
+  return (
+    <div>
+      {optimisticItems.map((item) => (
+        <ListItem key={item.id} item={item} />
+      ))}
+      <AddItemForm onAdd={addOptimisticItem} />
+    </div>
+  );
+}
+
+// Using the new useFormStatus hook
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button disabled={pending}>{pending ? "Adding..." : "Add Item"}</button>
+  );
+}
+```
+
+### 2. React 19 Asset Loading
+
+```typescript
+// app/components/LazyImage.tsx
+"use client";
+
+import { use } from "react";
+
+function LazyImage({ src }: { src: string }) {
+  const imageProps = use(getImageProps(src));
+  return <img {...imageProps} />;
+}
+
+// Asset loading with proper typing
+async function getImageProps(
+  src: string
+): Promise<React.ImgHTMLAttributes<HTMLImageElement>> {
+  const props = await fetchImageMetadata(src);
+  return {
+    src,
+    ...props,
+  };
+}
+```
+
+### 3. React 19 Document API Integration
+
+```typescript
+// app/components/DocumentActions.tsx
+"use client";
+
+import { experimental_useDocumentContext as useDocumentContext } from "react";
+
+export function DocumentActions() {
+  const { title, setTitle } = useDocumentContext();
+
+  return (
+    <div>
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Page title"
+      />
+    </div>
+  );
+}
+```
+
+### 4. React 19 Suspense Patterns with Next.js 15
+
+```typescript
+// app/components/AsyncContent.tsx
+import { Suspense, use } from "react";
+import { unstable_noStore as noStore } from "next/cache";
+
+// Data fetching with suspense
+async function fetchData() {
+  noStore();
+  const res = await fetch("https://api.example.com/data");
+  return res.json();
+}
+
+function AsyncContent() {
+  const data = use(fetchData());
+  return <div>{/* Render data */}</div>;
+}
+
+export function AsyncWrapper() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <AsyncContent />
+    </Suspense>
+  );
+}
+```
+
+### 5. React 19 Server Actions with Forms
+
+```typescript
+// app/actions/form.ts
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+
+export async function submitForm(formData: FormData) {
+  const data = Object.fromEntries(formData);
+
+  try {
+    await saveData(data);
+    revalidatePath("/data");
+    redirect("/success");
+  } catch (error) {
+    return { error: "Failed to submit form" };
+  }
+}
+
+// Usage in component
+// app/components/Form.tsx
+("use client");
+
+import { useFormState, useFormStatus } from "react";
+import { submitForm } from "../actions/form";
+
+export function Form() {
+  const [state, formAction] = useFormState(submitForm, null);
+
+  return (
+    <form action={formAction}>
+      {/* Form fields */}
+      <SubmitButton />
+      {state?.error && <p>{state.error}</p>}
+    </form>
+  );
+}
+```
+
+### 6. React 19 Streaming with Next.js 15
+
+```typescript
+// app/page.tsx
+import { Suspense } from "react";
+import { unstable_noStore as noStore } from "next/cache";
+
+export default function Page() {
+  noStore();
+
+  return (
+    <main>
+      <h1>Welcome</h1>
+      <Suspense fallback={<Loading />}>
+        <SlowComponent />
+      </Suspense>
+      <Suspense fallback={<Loading />}>
+        <AnotherSlowComponent />
+      </Suspense>
+    </main>
+  );
+}
+```
+
+### 7. React 19 Error Boundary Patterns
+
+```typescript
+// app/components/ErrorBoundary.tsx
+"use client";
+
+import { Component, ErrorInfo, ReactNode } from "react";
+
+interface Props {
+  children: ReactNode;
+  fallback: ReactNode;
+}
+
+interface State {
+  hasError: boolean;
+  error?: Error;
+}
+
+export class ModernErrorBoundary extends Component<Props, State> {
+  public state: State = {
+    hasError: false,
+  };
+
+  public static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("Uncaught error:", error, errorInfo);
+  }
+
+  public render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+
+    return this.props.children;
+  }
+}
+```
+
+## Next.js 15 Best Practices
+
+### 1. App Router and Server Components
+
+- Use the App Router (`app/` directory) as the standard
+- Leverage Server Components by default for improved performance
+- Use Client Components only when necessary (event handlers, browser APIs, etc.)
+- Implement Partial Prerendering (Next.js 15's new feature)
+- Use Server Actions for form handling and mutations
+
+### 2. Partial Prerendering (Next.js 15)
+
+```typescript
+// app/page.tsx
+import { Suspense } from "react";
+import { unstable_noStore as noStore } from "next/cache";
+
+export default function Page() {
+  // Static content will be prerendered
+  return (
+    <main>
+      <h1>Welcome to our site</h1>
+      <Suspense fallback={<Loading />}>
+        <DynamicContent />
+      </Suspense>
+    </main>
+  );
+}
+
+// Dynamic content with no-store directive
+function DynamicContent() {
+  noStore(); // Opt out of caching
+  // Fetch dynamic data here
+}
+```
+
+### 3. Server Actions Implementation
+
+```typescript
+// app/actions.ts
+"use server";
+
+import { revalidatePath } from "next/cache";
+
+export async function updateData(formData: FormData) {
+  const data = Object.fromEntries(formData);
+
+  try {
+    await api.data.post({ json: data });
+    revalidatePath("/data");
+  } catch (error) {
+    throw new Error("Failed to update data");
+  }
+}
+
+// Usage in component
+// app/components/DataForm.tsx
+("use client");
+
+import { updateData } from "../actions";
+
+export function DataForm() {
+  return <form action={updateData}>{/* form fields */}</form>;
+}
+```
+
+### 4. Advanced Caching Strategies
+
+```typescript
+// app/api/data/route.ts
+import { unstable_cache as cache } from "next/cache";
+
+export async function GET() {
+  const getCachedData = cache(
+    async () => {
+      // Your data fetching logic
+      return await fetchData();
+    },
+    ["data-cache"],
+    {
+      revalidate: 60, // Revalidate every 60 seconds
+      tags: ["data"], // Cache tags for selective revalidation
+    }
+  );
+
+  const data = await getCachedData();
+  return Response.json(data);
+}
+```
+
+### 5. Performance Optimization
+
+- Use Partial Prerendering for faster initial page loads
+- Implement route segments for code splitting
+- Use `loading.tsx` for streaming loading states
+- Leverage React Suspense boundaries
+- Use the new `unstable_cache` API for granular caching
+- Implement proper metadata for SEO using the new metadata API
+
+### 6. Route Handlers with Enhanced Caching
+
+```typescript
+// app/api/route.ts
+import { NextResponse } from "next/server";
+import { unstable_noStore as noStore } from "next/cache";
+
+export async function GET() {
+  // Opt out of caching for dynamic data
+  noStore();
+
+  // Your handler logic here
+  return NextResponse.json({ data: "example" });
+}
+```
+
+### 7. Next.js 15 Metadata API
+
+```typescript
+// app/layout.tsx
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  metadataBase: new URL("https://your-site.com"),
+  title: {
+    template: "%s | Site Name",
+    default: "Site Name",
+  },
+  description: "Site description",
+  openGraph: {
+    images: "/og-image.jpg",
+  },
+};
+```
+
+### 8. React Query with Next.js 15 Cache
+
+```typescript
+// lib/query-client.ts
+import { QueryClient } from "@tanstack/react-query";
+import { cache } from "react";
+
+export const getQueryClient = cache(
+  () =>
+    new QueryClient({
+      defaultOptions: {
+        queries: {
+          staleTime: 60 * 1000,
+          gcTime: 5 * 60 * 1000,
+          retry: 1,
+          refetchOnWindowFocus: false,
+        },
+      },
+    })
+);
+```
+
+## Next.js Best Practices
+
+### 1. App Router Usage
+
+- Use the App Router (`app/` directory) for all new projects
+- Implement layout patterns using `layout.tsx`
+- Use server components by default, only use client components when necessary
+- Implement proper error handling with `error.tsx` boundaries
+- Use loading states with `loading.tsx`
+
+### 2. Performance Optimization
+
+- Implement proper image optimization using `next/image`
+- Use route segments for code splitting
+- Implement proper caching strategies
+- Use React Suspense for data loading
+- Implement proper metadata for SEO
+
+### 3. React Query Integration
+
+```typescript
+// src/lib/query-client.ts
+import { QueryClient } from "@tanstack/react-query";
+
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60 * 1000, // 1 minute
+      gcTime: 5 * 60 * 1000, // 5 minutes
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+```
+
+### 4. Elysia.js API Integration
+
+```typescript
+// src/lib/api-client.ts
+import { edenTreaty } from "@elysiajs/eden";
+import type { App } from "./api-types";
+
+export const api = edenTreaty<App>("http://localhost:3000/api");
+
+// Example usage in React Query
+export const useData = () => {
+  return useQuery({
+    queryKey: ["data"],
+    queryFn: () => api.data.get(),
+  });
+};
+```
+
+### 5. NUQS Integration (URL State Management)
+
+```typescript
+// src/hooks/use-search-params.ts
+import { createSearch } from "nuqs";
+
+export const useSearchParams = createSearch({
+  page: { type: "number", default: 1 },
+  search: { type: "string", default: "" },
+  filters: { type: "json", default: [] },
+});
+```
+
+### 6. Next-auth Configuration
+
+```typescript
+// src/app/api/auth/[...nextauth]/route.ts
+import NextAuth from "next-auth";
+
+const handler = NextAuth({
+  providers: [
+    // Configure your providers here
+  ],
+  session: {
+    strategy: "jwt",
+  },
+  pages: {
+    signIn: "/auth/signin",
+    error: "/auth/error",
+  },
+});
+
+export { handler as GET, handler as POST };
+```
+
+## Code Style Guidelines
+
+### 1. Component Structure
+
+- Use TypeScript for all components
+- Implement proper prop typing
+- Use functional components with hooks
+- Follow single responsibility principle
+
+```typescript
+// Example component structure
+import { type FC } from "react";
+import { useTranslations } from "next-intl";
+import { useQuery } from "@tanstack/react-query";
+
+interface Props {
+  id: string;
+}
+
+export const Component: FC<Props> = ({ id }) => {
+  const t = useTranslations();
+  const { data, isLoading } = useQuery({
+    queryKey: ["data", id],
+    queryFn: () => api.getData.get({ id }),
+  });
+
+  if (isLoading) return <div>Loading...</div>;
+
+  return (
+    <div>
+      <h1>{t("title")}</h1>
+      {/* Component content */}
+    </div>
+  );
+};
+```
+
+### 2. State Management
+
+- Use React Query for server state
+- Use NUQS for URL state
+- Use React Context for global UI state
+- Use local state for component-specific state
+
+### 3. Error Handling
+
+- Implement proper error boundaries
+- Use proper error logging
+- Handle API errors gracefully
+- Show user-friendly error messages
+
+### 4. Testing
+
+- Write unit tests for utilities
+- Write integration tests for components
+- Write E2E tests for critical flows
+- Use proper mocking for external dependencies
+
+## Security Guidelines
+
+### 1. Authentication
+
+- Use Next-auth for authentication
+- Implement proper session management
+- Use secure cookies
+- Implement proper CSRF protection
+
+### 2. API Security
+
+- Validate all inputs
+- Implement proper rate limiting
+- Use proper CORS configuration
+- Implement proper error handling
+
+### 3. Environment Variables
+
+- Never expose sensitive data
+- Use proper environment configuration
+- Follow proper naming conventions
+- Document all required variables
+
+## Development Workflow
+
+### 1. Git Workflow
+
+- Use feature branches
+- Write meaningful commit messages
+- Follow conventional commits
+- Review code before merging
+
+### 2. Development Process
+
+- Use proper linting
+- Use proper formatting
+- Follow code review process
+- Document changes properly
+
+### 3. Deployment
+
+- Use proper CI/CD
+- Implement proper monitoring
+- Use proper logging
+- Follow proper release process
+
+## Performance Guidelines
+
+### 1. Bundle Optimization
+
+- Implement proper code splitting
+- Use proper lazy loading
+- Optimize dependencies
+- Monitor bundle size
+
+### 2. Runtime Performance
+
+- Implement proper memoization
+- Use proper rendering strategies
+- Optimize re-renders
+- Monitor performance metrics
+
+### 3. API Performance
+
+- Implement proper caching
+- Use proper data fetching
+- Optimize database queries
+- Monitor API performance
+
+## Accessibility Guidelines
+
+### 1. Basic Requirements
+
+- Use semantic HTML
+- Implement proper ARIA attributes
+- Ensure keyboard navigation
+- Support screen readers
+
+### 2. Visual Requirements
+
+- Ensure proper color contrast
+- Support different screen sizes
+- Support different browsers
+- Support different devices
+
+## Styling and Component System
+
+### 1. Tailwind CSS Configuration
+
+```typescript
+// tailwind.config.ts
+import type { Config } from "tailwindcss";
+import { fontFamily } from "tailwindcss/defaultTheme";
+
+const config = {
+  darkMode: ["class"],
+  content: ["./src/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
+  theme: {
+    container: {
+      center: true,
+      padding: "2rem",
+      screens: {
+        "2xl": "1400px",
+      },
+    },
+    extend: {
+      colors: {
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        // Add other color variables
+      },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
+      fontFamily: {
+        sans: ["var(--font-sans)", ...fontFamily.sans],
+      },
+    },
+  },
+  plugins: [require("@tailwindcss/typography"), require("tailwindcss-animate")],
+} satisfies Config;
+
+export default config;
+```
+
+### 2. shadcn/ui Setup
+
+```typescript
+// components.json
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "default",
+  "rsc": true,
+  "tsx": true,
+  "tailwind": {
+    "config": "tailwind.config.ts",
+    "css": "src/styles/globals.css",
+    "baseColor": "slate",
+    "cssVariables": true
+  },
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils"
+  }
+}
+
+// lib/utils.ts
+import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+```
+
+### 3. Global Styles
+
+```css
+/* styles/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    /* Add other CSS variables */
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    /* Add dark mode variables */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+```
+
+### 4. Component Best Practices
+
+```typescript
+// components/ui/button.tsx
+import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/utils";
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        default:
+          "bg-primary text-primary-foreground shadow hover:bg-primary/90",
+        destructive:
+          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
+        outline:
+          "border border-input bg-transparent shadow-sm hover:bg-accent hover:text-accent-foreground",
+        // Add other variants
+      },
+      size: {
+        default: "h-9 px-4 py-2",
+        sm: "h-8 rounded-md px-3 text-xs",
+        lg: "h-10 rounded-md px-8",
+        icon: "h-9 w-9",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+);
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+}
+
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button";
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+      />
+    );
+  }
+);
+Button.displayName = "Button";
+
+export { Button, buttonVariants };
+```
+
+### 5. Component Usage Examples
+
+```typescript
+// components/features/LoginForm.tsx
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
+
+export function LoginForm() {
+  return (
+    <Card className="w-[400px]">
+      <CardHeader>
+        <h2 className="text-2xl font-semibold">Login</h2>
+      </CardHeader>
+      <CardContent>
+        <form className="space-y-4">
+          <div className="space-y-2">
+            <Input type="email" placeholder="Email" className="w-full" />
+          </div>
+          <div className="space-y-2">
+            <Input type="password" placeholder="Password" className="w-full" />
+          </div>
+          <Button className="w-full">Sign In</Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+### 6. Responsive Design Patterns
+
+```typescript
+// components/features/Dashboard.tsx
+export function Dashboard() {
+  return (
+    <div className="container mx-auto px-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <Card className="col-span-1 md:col-span-2 lg:col-span-1">
+          {/* Card content */}
+        </Card>
+        <Card className="hidden md:block">{/* Responsive card */}</Card>
+        <Card className="hidden lg:block">{/* Large screen only card */}</Card>
+      </div>
+    </div>
+  );
+}
+```
+
+### 7. Dark Mode Implementation
+
+```typescript
+// components/ThemeProvider.tsx
+"use client";
+
+import { createContext, useContext, useEffect, useState } from "react";
+
+type Theme = "dark" | "light" | "system";
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [theme, setTheme] = useState<Theme>("system");
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.remove("light", "dark");
+
+    if (theme === "system") {
+      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
+        .matches
+        ? "dark"
+        : "light";
+      root.classList.add(systemTheme);
+    } else {
+      root.classList.add(theme);
+    }
+  }, [theme]);
+
+  return (
+    <ThemeContext.Provider value={{ theme, setTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+}
+```
+
+## Animation with Motion for React
+
+### 1. Motion Configuration
+
+```typescript
+// motion.config.ts
+export const defaultTransition = {
+  type: "spring",
+  stiffness: 300,
+  damping: 30,
+  duration: 0.3,
+};
+
+export const staggerChildren = {
+  staggerChildren: 0.1,
+  delayChildren: 0.2,
+};
+
+export const fadeInVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: defaultTransition },
+};
+
+export const slideInVariants = {
+  hidden: { x: -20, opacity: 0 },
+  visible: { x: 0, opacity: 1, transition: defaultTransition },
+};
+
+export const scaleVariants = {
+  hidden: { scale: 0.8, opacity: 0 },
+  visible: { scale: 1, opacity: 1, transition: defaultTransition },
+};
+
+export const listVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: staggerChildren,
+  },
+};
+
+export const itemVariants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: { y: 0, opacity: 1, transition: defaultTransition },
+};
+```
+
+### 2. Setup and Optimization
+
+```typescript
+// lib/motion.ts
+import { LazyMotion, domAnimation, m } from "motion/react";
+
+// Use this component to reduce bundle size
+export function MotionProvider({ children }: { children: React.ReactNode }) {
+  return <LazyMotion features={domAnimation}>{children}</LazyMotion>;
+}
+
+// Export the optimized motion components
+export { m };
+```
+
+### 3. Animation Hooks
+
+```typescript
+// hooks/use-animation.ts
+import { useInView } from "motion/react";
+import { useRef } from "react";
+
+export function useAnimationInView(options = { once: true, amount: 0.3 }) {
+  const ref = useRef(null);
+  const isInView = useInView(ref, options);
+
+  return { ref, isInView };
+}
+```
+
+### 4. Basic Animation Components
+
+```typescript
+// components/ui/animated-container.tsx
+"use client";
+
+import { m, type Variants } from "motion/react";
+import { fadeInVariants } from "@/motion.config";
+
+interface AnimatedContainerProps {
+  children: React.ReactNode;
+  variants?: Variants;
+  className?: string;
+  delay?: number;
+  duration?: number;
+  initial?: string | object;
+  animate?: string | object;
+  exit?: string | object;
+}
+
+export function AnimatedContainer({
+  children,
+  variants = fadeInVariants,
+  className = "",
+  delay = 0,
+  duration = 0.3,
+  initial = "hidden",
+  animate = "visible",
+  exit = "hidden",
+  ...props
+}: AnimatedContainerProps) {
+  return (
+    <m.div
+      className={className}
+      initial={initial}
+      animate={animate}
+      exit={exit}
+      variants={variants}
+      transition={{ delay, duration }}
+      {...props}
+    >
+      {children}
+    </m.div>
+  );
+}
+```
+
+### 5. Animated Page Component
+
+```typescript
+// app/[locale]/page.tsx
+"use client";
+
+import { m } from "motion/react";
+import { useTranslations } from "next-intl";
+import { fadeInVariants, staggerChildren, itemVariants } from "@/motion.config";
+
+export default function HomePage() {
+  const t = useTranslations("Home");
+
+  return (
+    <m.main
+      initial="hidden"
+      animate="visible"
+      variants={fadeInVariants}
+      className="container mx-auto px-4 py-8"
+    >
+      <m.h1 variants={itemVariants} className="text-4xl font-bold mb-6">
+        {t("title")}
+      </m.h1>
+
+      <m.div
+        variants={staggerChildren}
+        className="grid grid-cols-1 md:grid-cols-3 gap-6"
+      >
+        {[1, 2, 3].map((item) => (
+          <m.div
+            key={item}
+            variants={itemVariants}
+            className="bg-card p-6 rounded-lg shadow-md"
+          >
+            <h2 className="text-xl font-semibold mb-2">
+              {t(`card${item}.title`)}
+            </h2>
+            <p>{t(`card${item}.description`)}</p>
+          </m.div>
+        ))}
+      </m.div>
+    </m.main>
+  );
+}
+```
+
+### 6. Animated UI Components
+
+```typescript
+// components/ui/animated-button.tsx
+"use client";
+
+import { m } from "motion/react";
+import { Button, type ButtonProps } from "@/components/ui/button";
+import { forwardRef } from "react";
+
+interface AnimatedButtonProps extends ButtonProps {
+  whileHover?: object;
+  whileTap?: object;
+}
+
+export const AnimatedButton = forwardRef<
+  HTMLButtonElement,
+  AnimatedButtonProps
+>(
+  (
+    {
+      children,
+      className,
+      whileHover = { scale: 1.05 },
+      whileTap = { scale: 0.95 },
+      ...props
+    },
+    ref
+  ) => {
+    return (
+      <m.div
+        whileHover={whileHover}
+        whileTap={whileTap}
+        className="inline-block"
+      >
+        <Button ref={ref} className={className} {...props}>
+          {children}
+        </Button>
+      </m.div>
+    );
+  }
+);
+AnimatedButton.displayName = "AnimatedButton";
+```
+
+### 7. Layout Animations
+
+```typescript
+// components/features/LayoutAnimation.tsx
+"use client";
+
+import { m, LayoutGroup } from "motion/react";
+import { useState } from "react";
+
+export function LayoutAnimation() {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <LayoutGroup id="main-content">
+      <div className="space-y-4">
+        <button onClick={() => setIsExpanded(!isExpanded)}>
+          {isExpanded ? "Collapse" : "Expand"}
+        </button>
+
+        <m.div
+          layout
+          className="bg-card p-4 rounded-lg"
+          style={{ height: isExpanded ? "auto" : "100px" }}
+        >
+          <m.h3 layout className="font-medium">
+            Animated Layout
+          </m.h3>
+
+          {isExpanded && (
+            <m.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mt-2"
+            >
+              <p>Additional content that appears when expanded.</p>
+              <p>Motion will animate the height and position smoothly.</p>
+            </m.div>
+          )}
+        </m.div>
+      </div>
+    </LayoutGroup>
+  );
+}
+```
+
+### 8. Modal Animations
+
+```typescript
+// components/ui/animated-dialog.tsx
+"use client";
+
+import { m, AnimatePresence } from "motion/react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+
+const overlayVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1 },
+};
+
+const contentVariants = {
+  hidden: { opacity: 0, y: 20, scale: 0.95 },
+  visible: { opacity: 1, y: 0, scale: 1 },
+};
+
+interface AnimatedDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title?: string;
+  description?: string;
+  children: React.ReactNode;
+}
+
+export function AnimatedDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  children,
+}: AnimatedDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <AnimatePresence>
+        {open && (
+          <DialogContent
+            forceMount
+            className="p-0 overflow-hidden bg-transparent border-none shadow-none"
+          >
+            <m.div
+              initial="hidden"
+              animate="visible"
+              exit="hidden"
+              variants={overlayVariants}
+              className="fixed inset-0 bg-black/50 z-50"
+              onClick={() => onOpenChange(false)}
+            />
+            <m.div
+              initial="hidden"
+              animate="visible"
+              exit="hidden"
+              variants={contentVariants}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="bg-background rounded-lg shadow-lg p-6 z-50 relative max-w-md w-full mx-auto"
+            >
+              {title && (
+                <DialogHeader>
+                  <DialogTitle>{title}</DialogTitle>
+                  {description && (
+                    <DialogDescription>{description}</DialogDescription>
+                  )}
+                </DialogHeader>
+              )}
+              {children}
+            </m.div>
+          </DialogContent>
+        )}
+      </AnimatePresence>
+    </Dialog>
+  );
+}
+```
+
+### 9. Scroll-Triggered Animations
+
+```typescript
+// components/features/ScrollReveal.tsx
+"use client";
+
+import { m } from "motion/react";
+import { useAnimationInView } from "@/hooks/use-animation";
+import { slideInVariants } from "@/motion.config";
+
+interface ScrollRevealProps {
+  children: React.ReactNode;
+  className?: string;
+  variants?: any;
+}
+
+export function ScrollReveal({
+  children,
+  className = "",
+  variants = slideInVariants,
+}: ScrollRevealProps) {
+  const { ref, isInView } = useAnimationInView();
+
+  return (
+    <m.div
+      ref={ref}
+      initial="hidden"
+      animate={isInView ? "visible" : "hidden"}
+      variants={variants}
+      className={className}
+    >
+      {children}
+    </m.div>
+  );
+}
+```
+
+### 10. Animation Best Practices
+
+- Use the `LazyMotion` component with `domAnimation` to reduce bundle size
+- Use the `m` component instead of `motion` for better tree-shaking
+- Use `AnimatePresence` for elements that mount and unmount
+- Use `LayoutGroup` to group components that affect each other's layout
+- Use the `layout` prop for automatic layout animations
+- Use `layoutId` for shared element transitions
+- Implement page transitions for a smoother user experience
+- Use staggered animations for lists and groups of elements
+- Use the `useReducedMotion` hook to respect user preferences
+- Consider using CSS View Transitions API for simple page transitions
+- Keep animations subtle and purposeful
+- Test animations on different devices and browsers
+
+```typescript
+// hooks/use-reduced-motion.ts
+import { useReducedMotion as useMotionReducedMotion } from "motion/react";
+
+export function useReducedMotion() {
+  const prefersReducedMotion = useMotionReducedMotion();
+
+  return {
+    prefersReducedMotion,
+    // Return safe animation values based on user preference
+    getTransition: (transition: any) =>
+      prefersReducedMotion ? { duration: 0 } : transition,
+    getVariants: (variants: any, fallback: any = {}) =>
+      prefersReducedMotion ? fallback : variants,
+  };
+}
+```

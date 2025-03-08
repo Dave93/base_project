@@ -1,0 +1,38 @@
+{
+  "name": "auth-apps",
+  "version": "1.0.0",
+  "description": "Monorepo with authentication apps: API, Web, and Dashboard",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "db:generate": "cd packages/db && bun run db:generate",
+    "db:migrate": "cd packages/db && bun run db:migrate",
+    "db:studio": "cd packages/db && bun run db:studio"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.4",
+    "prettier": "^3.2.5",
+    "turbo": "^2.4.4",
+    "typescript": "^5.8.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "bun": ">=1.0.0"
+  },
+  "packageManager": "bun@1.2.4",
+  "trustedDependencies": [
+    "es5-ext"
+  ],
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.0.9",
+    "postcss": "^8.5.3"
+  }
+}

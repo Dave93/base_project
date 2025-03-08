@@ -1,0 +1,291 @@
+---
+description: API for backend application with Elysia.js
+globs: apps/api/**/*.(ts|tsx)
+alwaysApply: false
+---
+# Backend Rules for Cursor
+
+## Technology Stack
+
+- ElysiaJS (v1.2.21) - Fast and type-safe web framework
+- Drizzle ORM (v0.39.1) - Type-safe ORM for PostgreSQL
+- Redis (via ioredis v5.3.2) - For session management
+- PostgreSQL (via postgres.js v3.4.3) - Main database
+- Node.js Cluster - For multi-core utilization
+
+## Project Structure
+
+```
+.
+├── src/
+│   ├── plugins/
+│   │   ├── auth.ts       # Authentication plugin with useAuth macro
+│   │   └── index.ts      # Plugin exports
+│   ├── services/
+│   │   ├── user.ts       # User service logic
+│   │   └── session.ts    # Session service logic
+│   ├── models/
+│   │   └── schema.ts     # Drizzle schema definitions (imports from packages/db)
+│   ├── db/
+│   │   ├── migrations/   # Database migrations
+│   │   └── index.ts      # Database and Redis connections
+│   └── index.ts          # Main application entry point
+├── drizzle/              # Generated migrations
+├── drizzle.config.ts     # Drizzle configuration
+├── package.json          # Dependencies and scripts
+├── tsconfig.json         # TypeScript configuration
+└── .env                  # Environment variables
+```
+
+## ElysiaJS Best Practices
+
+### Method Chaining
+
+MUST use method chaining for type safety:
+
+```typescript
+new Elysia().use(cors()).use(cookie()).use(auth).listen(3000);
+```
+
+### Plugin Structure
+
+Each plugin should be a separate Elysia instance:
+
+```typescript
+// src/plugins/auth.ts
+export const auth = new Elysia({ name: "auth" })
+  .state("sessions", {} as Record<string, any>)
+  .macro({
+    useAuth(enabled: boolean = true) {
+      if (!enabled) return;
+
+      return {
+        beforeHandle: async ({ cookie, set, error }) => {
+          const token = cookie.session;
+          if (!token) {
+            set.status = 403;
+            throw error(403, "Unauthorized");
+          }
+          // ... session validation
+        },
+      };
+    },
+  });
+```
+
+### Error Handling
+
+Must implement error handling at the root level:
+
+```typescript
+new Elysia().onError(({ error, code }) => {
+  if (code === "NOT_FOUND") return "Not Found :(";
+  console.error(error);
+  return { success: false, message: error.message };
+});
+```
+
+### Type Safety
+
+1. Use TypeScript decorators for type definitions
+2. Define models using Elysia's type system:
+
+```typescript
+.model({
+  session: t.Object({
+    token: t.String(),
+    userId: t.String(),
+    data: t.Record(t.String(), t.Any())
+  })
+})
+```
+
+## Dependencies Setup
+
+```json
+{
+  "dependencies": {
+    "@elysiajs/cookie": "^0.8.0",
+    "@elysiajs/cors": "^1.2.0",
+    "@elysiajs/swagger": "^1.2.2",
+    "drizzle-orm": "^0.39.1",
+    "elysia": "^1.2.21",
+    "ioredis": "^5.3.2",
+    "postgres": "^3.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "bun-types": "latest",
+    "typescript": "^5.3.3"
+  }
+}
+```
+
+## Database Schema Rules
+
+1. Database schema and connections MUST be imported from packages/db
+2. Session table must include:
+   - token (primary key)
+   - userId
+   - data (JSON stringified)
+   - isValid flag
+   - timestamps (createdAt, updatedAt)
+
+```typescript
+// src/models/schema.ts
+import { sessions } from "packages/db/schema";
+
+// Re-export the schema
+export { sessions };
+```
+
+## Authentication Rules
+
+1. The `useAuth` macro must:
+   - Be implemented as an Elysia plugin
+   - Accept an `enabled` boolean parameter
+   - Check session token from cookie if enabled
+   - Verify session existence in Redis
+   - Add session data to context if valid
+   - Return 403 error if unauthorized
+
+```typescript
+// Example usage in routes
+app.get(
+  "/protected",
+  ({ session }) => ({ message: "Protected route", session }),
+  { beforeHandle: ({ useAuth }) => useAuth({ enabled: true }) }
+);
+```
+
+## Service Layer Rules
+
+1. Each service should be a separate Elysia plugin
+2. Services should handle business logic
+3. Services should be stateless
+4. Services should use dependency injection
+
+Example:
+
+```typescript
+// src/services/session.ts
+export const sessionService = new Elysia({ name: "session-service" })
+  .decorate("redis", redis)
+  .decorate("db", db);
+```
+
+## Cluster Configuration Rules
+
+1. Must use Node.js native cluster module
+2. Number of workers should match available CPU cores
+3. Must automatically restart dead workers
+4. Each worker should:
+   - Have its own database connection
+   - Have its own Redis connection
+   - Listen on the same port
+
+## Environment Variables Rules
+
+Required environment variables:
+
+```env
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/elysia_db
+REDIS_URL=redis://localhost:6379
+PORT=3000
+NODE_ENV=development
+```
+
+## Database Connection Rules
+
+1. PostgreSQL connection MUST be imported from packages/db:
+
+```typescript
+// src/db/index.ts
+import { db } from "packages/db";
+import { Redis } from "ioredis";
+
+// Only create Redis connection in this file
+const redis = new Redis(process.env.REDIS_URL);
+
+export { db, redis };
+```
+
+2. The packages/db module should:
+
+   - Export the database connection
+   - Export the schema
+   - Handle connection pooling
+   - Handle connection errors gracefully
+   - Be configured per worker
+   - Use Drizzle ORM for type safety
+
+3. Redis connection must:
+   - Handle connection failures
+   - Implement reconnection strategy
+   - Be configured per worker
+   - Use ioredis for type safety
+
+## Error Handling Rules
+
+1. Database errors must be caught and logged
+2. Redis connection failures must not crash the application
+3. Authentication failures must return proper HTTP status codes
+4. All errors must include appropriate error messages
+5. Use Elysia's error handling system
+
+## Performance Rules
+
+1. Use node:cluster for multi-core utilization
+2. Implement connection pooling for database
+3. Use Redis for session management
+4. Implement proper error handling and logging
+5. Use Elysia's built-in performance optimizations
+
+## Security Rules
+
+1. All authentication tokens must be:
+
+   - Stored in HttpOnly cookies
+   - Secured with proper flags (Secure, SameSite)
+   - Have appropriate expiration times
+
+2. Session data must be:
+   - Encrypted in transit
+   - Stored securely in Redis
+   - Properly invalidated when needed
+
+## Development Rules
+
+1. Use TypeScript for type safety
+2. Follow Elysia's method chaining pattern
+3. Implement proper logging
+4. Follow consistent code formatting
+5. Document all major components
+6. Use Elysia's plugin system for modularity
+
+## Testing Rules
+
+1. Write unit tests for critical paths
+2. Test authentication flows
+3. Test database operations
+4. Test Redis operations
+5. Test cluster behavior
+6. Use Elysia's built-in testing utilities
+
+## Deployment Rules
+
+1. Use proper process management
+2. Implement health checks
+3. Monitor cluster status
+4. Handle graceful shutdowns
+5. Implement proper logging
+6. Use Elysia's production optimizations
+
+## Maintenance Rules
+
+1. Regular dependency updates
+2. Security patch management
+3. Database maintenance
+4. Redis maintenance
+5. Log rotation
+6. Monitor Elysia version updates

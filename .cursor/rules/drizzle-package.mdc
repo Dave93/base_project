@@ -1,0 +1,301 @@
+---
+description: Best Practices for database management with drizzle-orm
+globs: packages/db/**/*.ts
+alwaysApply: false
+---
+# Cursor Rules for Drizzle ORM Package in Turborepo
+
+## Package Structure
+
+```
+packages/drizzle/
+├── src/
+│   ├── index.ts       # Main entry point
+│   ├── schema/        # Database schema definitions
+│   ├── migrations/    # Database migrations
+│   ├── client.ts      # Database client setup
+│   └── utils/         # Utility functions
+├── package.json
+├── tsconfig.json
+├── drizzle.config.ts  # Drizzle configuration
+└── README.md
+```
+
+## Database Choice
+
+**Always use PostgreSQL** for production applications. While Drizzle ORM supports multiple database engines, PostgreSQL offers the best combination of features, reliability, and performance for most applications. Other database options should only be considered for specific use cases where PostgreSQL is not suitable.
+
+## Configuration Rules
+
+### 1. Package Dependencies
+
+- **Required Dependencies**:
+
+  - `drizzle-orm`: Latest stable version
+  - `drizzle-kit`: Latest stable version
+  - Database driver:
+    - `pg` for PostgreSQL (recommended)
+    - Other options only if absolutely necessary:
+      - `@libsql/client` for Turso
+      - `mysql2` for MySQL
+      - `better-sqlite3` for SQLite
+
+- **Dev Dependencies**:
+  - `typescript`
+  - `tsx`
+  - `tsup` for bundling
+  - `vitest` for testing
+
+### 2. Package.json Configuration
+
+```json
+{
+  "name": "@repo/drizzle",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": ["dist/**"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint src/",
+    "clean": "rm -rf .turbo node_modules dist",
+    "db:generate": "drizzle-kit generate:pg",
+    "db:migrate": "tsx src/migrations/migrate.ts",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.29.0",
+    "pg": "^8.11.3",
+    "postgres": "^3.4.3"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.20.0",
+    "@repo/eslint-config": "*",
+    "@repo/typescript-config": "*",
+    "@types/pg": "^8.10.9",
+    "tsup": "^7.2.0",
+    "typescript": "^5.2.2"
+  }
+}
+```
+
+### 4. Drizzle Configuration
+
+Create a `drizzle.config.ts` file:
+
+```typescript
+import type { Config } from "drizzle-kit";
+
+export default {
+  schema: "./src/schema/*.ts",
+  out: "./src/migrations",
+  driver: "pg",
+  dbCredentials: {
+    connectionString:
+      process.env.DATABASE_URL ||
+      "postgres://postgres:postgres@localhost:5432/mydb",
+  },
+} satisfies Config;
+```
+
+## Code Structure Rules
+
+### 1. Schema Definitions
+
+- Place all schema definitions in `src/schema/` directory
+- Each entity should have its own file (e.g., `users.ts`, `posts.ts`)
+- Export all schemas from an `index.ts` file
+
+Example schema file (`src/schema/users.ts`):
+
+```typescript
+import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+
+export const users = pgTable("users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+```
+
+### 2. Database Client
+
+Create a reusable database client in `src/client.ts`:
+
+```typescript
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import * as schema from "./schema";
+
+// For PostgreSQL with postgres.js (recommended for most use cases)
+const connectionString =
+  process.env.DATABASE_URL ||
+  "postgres://postgres:postgres@localhost:5432/mydb";
+const queryClient = postgres(connectionString);
+export const db = drizzle(queryClient, { schema });
+
+// Alternative: Using node-postgres (pg)
+// import { drizzle } from "drizzle-orm/node-postgres";
+// import { Pool } from "pg";
+// const pool = new Pool({
+//   connectionString: process.env.DATABASE_URL,
+// });
+// export const db = drizzle(pool, { schema });
+```
+
+### 3. Migrations
+
+Create a migration script in `src/migrations/migrate.ts`:
+
+```typescript
+import { migrate } from "drizzle-orm/postgres-js/migrator";
+import { db } from "../client";
+
+// This will run migrations on the database, creating tables if they don't exist
+async function main() {
+  console.log("Running migrations...");
+  await migrate(db, { migrationsFolder: "./src/migrations" });
+  console.log("Migrations complete!");
+  process.exit(0);
+}
+
+main().catch((error) => {
+  console.error("Migration failed:", error);
+  process.exit(1);
+});
+```
+
+### 4. Main Entry Point
+
+Create `src/index.ts` to export all necessary components:
+
+```typescript
+// Export database client
+export { db } from "./client";
+
+// Export all schemas
+export * from "./schema";
+
+// Export utility functions
+export * from "./utils";
+```
+
+## Usage Rules
+
+### 1. Importing in Other Packages
+
+```typescript
+// From another package in the monorepo
+import { db, users } from "@repo/drizzle";
+
+// Example query
+const allUsers = await db.select().from(users);
+```
+
+### 2. Environment Variables
+
+- Store database connection strings in environment variables
+- Use `.env.local` for local development
+- Configure environment variables in your deployment platform
+- Always use connection pooling in production environments
+
+### 3. Integration with Next.js
+
+For Next.js applications in the monorepo:
+
+```typescript
+// app/api/users/route.ts
+import { db, users } from "@repo/drizzle";
+import { NextResponse } from "next/server";
+
+export async function GET() {
+  const allUsers = await db.select().from(users);
+  return NextResponse.json(allUsers);
+}
+```
+
+## Best Practices
+
+1. **Type Safety**: Always use the inferred types from your schema definitions
+2. **Transactions**: Use transactions for operations that require multiple queries
+3. **Prepared Statements**: Use prepared statements for queries with parameters
+4. **Migrations**: Always run migrations in CI/CD pipelines before deployment
+5. **Connection Pooling**: For production, implement connection pooling
+6. **Error Handling**: Implement proper error handling for database operations
+7. **PostgreSQL Features**: Leverage PostgreSQL-specific features like JSON columns, full-text search, and array types
+
+## Common Pitfalls to Avoid
+
+1. **Connection Leaks**: Always close database connections when using direct drivers
+2. **Large Transactions**: Avoid extremely large transactions that could lock the database
+3. **Raw SQL**: Minimize use of raw SQL to maintain type safety
+4. **Schema Drift**: Keep migrations and schema definitions in sync
+5. **Environment Mixing**: Don't use production database in development environments
+6. **Using SQLite in Production**: Avoid using SQLite for production applications; always use PostgreSQL
+
+## Testing
+
+1. Create a separate test database configuration
+2. Use a dedicated PostgreSQL test database for integration tests
+3. Consider using Docker containers for isolated test environments
+4. Implement test helpers for database setup and teardown
+
+Example test setup:
+
+```typescript
+// tests/setup.ts
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
+import * as schema from "../src/schema";
+
+export function getTestDb() {
+  // Use a dedicated test database
+  const connectionString =
+    process.env.TEST_DATABASE_URL ||
+    "postgres://postgres:postgres@localhost:5432/test_db";
+  const queryClient = postgres(connectionString);
+  const db = drizzle(queryClient, { schema });
+
+  // Run migrations on test database
+  migrate(db, { migrationsFolder: "./src/migrations" });
+
+  return { db, queryClient };
+}
+
+// Clean up function to close connections
+export async function cleanupTestDb(queryClient: ReturnType<typeof postgres>) {
+  await queryClient.end();
+}
+```
+
+## Turborepo Integration
+
+1. Add the drizzle package to the appropriate workspace in `turbo.json`:
+
+```json
+{
+  "$schema": "https://turbo.build/schema.json",
+  "pipeline": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "db:generate": {
+      "cache": false
+    },
+    "db:migrate": {
+      "cache": false
+    }
+  }
+}
+```
+
+2. Configure package dependencies in apps that use the drizzle package

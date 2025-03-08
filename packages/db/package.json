@@ -1,0 +1,25 @@
+{
+    "name": "@auth-apps/db",
+    "version": "0.0.0",
+    "private": true,
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "scripts": {
+        "build": "bun build ./src/index.ts --outdir ./dist",
+        "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist",
+        "dev": "bun run --watch src/index.ts",
+        "lint": "eslint \"src/**/*.ts\"",
+        "db:generate": "bunx drizzle-kit generate:pg",
+        "db:migrate": "bun run src/migrations/migrate.ts",
+        "db:studio": "bunx drizzle-kit studio"
+    },
+    "dependencies": {
+        "drizzle-orm": "^0.39.1",
+        "postgres": "^3.4.3"
+    },
+    "devDependencies": {
+        "drizzle-kit": "^0.20.14",
+        "eslint": "^8.56.0",
+        "typescript": "^5.8.2"
+    }
+}
