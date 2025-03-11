@@ -1,0 +1,16 @@
+{
+    "dashboard": {
+        "title": "Dashboard"
+    },
+    "login": {
+        "title": "Login",
+        "email": "Email",
+        "password": "Password",
+        "login": "Login"
+    },
+    "Forbidden": {
+        "title": "Access Forbidden",
+        "message": "You do not have permission to access this resource.",
+        "backToHome": "Back to Home"
+    }
+}

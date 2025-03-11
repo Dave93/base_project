@@ -154,6 +154,10 @@ async function createUser(userData: Omit<NewUser, "id" | "createdAt" | "updatedA
             {
                 name: "Users Edit",
                 code: "users.edit"
+            },
+            {
+                name: "Dashboard Access",
+                code: "dashboard.access"
             }
         ];
 

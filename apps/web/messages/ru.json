@@ -1,0 +1,11 @@
+{
+    "dashboard": {
+        "title": "Панель управления"
+    },
+    "login": {
+        "title": "Вход в систему",
+        "email": "Email",
+        "password": "Пароль",
+        "login": "Вход"
+    }
+}

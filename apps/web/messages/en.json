@@ -1,0 +1,11 @@
+{
+    "dashboard": {
+        "title": "Dashboard"
+    },
+    "login": {
+        "title": "Login",
+        "email": "Email",
+        "password": "Password",
+        "login": "Login"
+    }
+}

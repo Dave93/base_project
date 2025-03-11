@@ -1,11 +1,6 @@
-import type { Metadata } from "next";
-import "@/app/globals.css";
-import Providers from "../providers";
 
-export const metadata: Metadata = {
-    title: "Auth Apps - Dashboard",
-    description: "Admin dashboard with authentication",
-};
+import "./globals.css";
+import Providers from "./providers";
 
 export default function RootLayout({
     children,
@@ -16,11 +11,9 @@ export default function RootLayout({
         <html lang="en">
             <body>
                 <Providers>
-                    <main className="min-h-screen bg-background">
-                        {children}
-                    </main>
+                    {children}
                 </Providers>
             </body>
         </html>
     );
-} 
+}

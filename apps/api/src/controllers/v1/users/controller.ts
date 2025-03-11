@@ -23,7 +23,7 @@ export const userController = new Elysia({
             id: users.id,
             email: users.email,
             password: users.password,
-            // role_id: users.role_id,
+            role_id: users.role_id,
             name: users.name
         })
             .from(users)
@@ -59,10 +59,10 @@ export const userController = new Elysia({
             role: null
         };
 
-        // if (user[0].role_id) {
-        //     const role = await cacheService.getRole(user[0].role_id);
-        //     sessionUser.role = role;
-        // }
+        if (user[0].role_id) {
+            const role = await cacheService.getRole(user[0].role_id);
+            sessionUser.role = role;
+        }
 
         const { password: _, id, ...userWithoutPassword } = user[0];
 
@@ -112,6 +112,20 @@ export const userController = new Elysia({
         return {
             ...userWithoutPassword,
             role_id: user.role?.id ?? null
+        };
+    }, {
+        useAuth: true
+    })
+    .get('/permissions', async ({
+        user,
+        error
+    }) => {
+        if (!user) {
+            return error(401, "Unauthorized");
+        }
+
+        return {
+            permissions: user.role?.permissions ?? []
         };
     }, {
         useAuth: true
