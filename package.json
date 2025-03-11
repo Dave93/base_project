@@ -15,7 +15,8 @@
     "clean": "turbo run clean && rm -rf node_modules",
     "db:generate": "cd packages/db && bun run db:generate",
     "db:migrate": "cd packages/db && bun run db:migrate",
-    "db:studio": "cd packages/db && bun run db:studio"
+    "db:studio": "cd packages/db && bun run db:studio",
+    "db:seed": "cd packages/db && bun run db:seed"
   },
   "devDependencies": {
     "@types/bun": "^1.2.4",

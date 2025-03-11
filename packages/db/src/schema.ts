@@ -18,9 +18,7 @@ export const role_permissions = pgTable("role_permissions", {
     id: uuid("id").primaryKey().defaultRandom(),
     role_id: uuid("role_id").references(() => roles.id).notNull(),
     permission_id: uuid("permission_id").references(() => permissions.id).notNull(),
-}, (t) => [
-    primaryKey({ columns: [t.role_id, t.permission_id] }),
-]);
+});
 
 export const users = pgTable("users", {
     id: uuid("id").primaryKey().defaultRandom(),

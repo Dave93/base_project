@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "@/app/globals.css";
+import Providers from "../providers";
 
 export const metadata: Metadata = {
     title: "Auth Apps - Dashboard",
@@ -14,9 +15,11 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body>
-                <main className="min-h-screen bg-background">
-                    {children}
-                </main>
+                <Providers>
+                    <main className="min-h-screen bg-background">
+                        {children}
+                    </main>
+                </Providers>
             </body>
         </html>
     );

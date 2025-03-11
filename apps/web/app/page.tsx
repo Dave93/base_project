@@ -1,12 +1,14 @@
 
+import TestAuth from "@/components/test_auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import Link from "next/link";
 
+
 export default function Home() {
     return (
         <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-b from-blue-50 to-white">
-            <Card className="max-w-md w-full">
+            <Card className="max-w-md w-full mb-8">
                 <CardHeader>
                     <div className="text-center">
                         <h1 className="text-4xl font-extrabold text-blue-600">Welcome to Auth Apps</h1>
@@ -17,6 +19,7 @@ export default function Home() {
                 </CardHeader>
 
                 <CardContent>
+                    <TestAuth />
                     <div className="space-y-4">
                         <div className="flex flex-col space-y-4">
                             <Link href="/login" className="w-full">
@@ -33,6 +36,7 @@ export default function Home() {
                     </div>
                 </CardContent>
             </Card>
+
         </div>
     );
 } 

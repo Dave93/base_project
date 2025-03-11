@@ -77,6 +77,7 @@ export class CacheService {
     async setUserSession(userData: {
         id: string;
         email: string;
+        name: string | null;
         role: {
             id: string;
             name: string;

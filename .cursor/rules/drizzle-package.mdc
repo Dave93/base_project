@@ -35,16 +35,9 @@ packages/drizzle/
   - `drizzle-kit`: Latest stable version
   - Database driver:
     - `pg` for PostgreSQL (recommended)
-    - Other options only if absolutely necessary:
-      - `@libsql/client` for Turso
-      - `mysql2` for MySQL
-      - `better-sqlite3` for SQLite
 
 - **Dev Dependencies**:
   - `typescript`
-  - `tsx`
-  - `tsup` for bundling
-  - `vitest` for testing
 
 ### 2. Package.json Configuration
 

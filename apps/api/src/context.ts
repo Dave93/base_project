@@ -1,4 +1,4 @@
-import { Elysia } from "elysia";
+import Elysia from "elysia";
 import { redis } from "./db";
 import { db } from "./db";
 import { CacheService } from "./services/cache";
@@ -11,7 +11,13 @@ const ctx = new Elysia({
     .decorate("cacheService", new CacheService(redis, db))
     .macro({
         useAuth(enabled: boolean = true) {
-            if (!enabled) return;
+            if (!enabled) return {
+                resolve() {
+                    return {
+                        user: null
+                    };
+                }
+            };
 
             return {
                 beforeHandle: async ({ cookie, error, cacheService }) => {
@@ -34,6 +40,7 @@ const ctx = new Elysia({
                         const refreshSessionData = JSON.parse(refreshSession) as unknown as {
                             id: string;
                             email: string;
+                            name: string | null;
                             role: {
                                 id: string;
                                 name: string;
@@ -53,6 +60,7 @@ const ctx = new Elysia({
                         const sessionData = JSON.parse(session) as unknown as {
                             id: string;
                             email: string;
+                            name: string | null;
                             role: {
                                 id: string;
                                 name: string;
@@ -60,7 +68,6 @@ const ctx = new Elysia({
                                 permissions: string[];
                             } | null;
                         };
-                        return { session: sessionData };
                     } catch (err) {
                         throw error(500, "Invalid session data");
                     }
@@ -83,6 +90,7 @@ const ctx = new Elysia({
                     const sessionData = JSON.parse(session) as unknown as {
                         id: string;
                         email: string;
+                        name: string | null;
                         role: {
                             id: string;
                             name: string;
