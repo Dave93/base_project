@@ -12,5 +12,31 @@
         "title": "Access Forbidden",
         "message": "You do not have permission to access this resource.",
         "backToHome": "Back to Home"
+    },
+    "Permissions": {
+        "title": "Permissions",
+        "createSuccess": "Permission created",
+        "createError": "Error creating permission",
+        "updateSuccess": "Permission updated",
+        "updateError": "Error updating permission",
+        "deleteSuccess": "Permission deleted",
+        "deleteError": "Error deleting permission",
+        "addNew": "Add new",
+        "name": "Name",
+        "code": "Code",
+        "actions": "Actions",
+        "editPermission": "Edit permission",
+        "createPermission": "Create permission",
+        "deleteConfirmation": "Delete confirmation",
+        "deleteConfirmationText": "Are you sure you want to delete permission %name%?",
+        "deleteConfirmationTitle": "Are you sure you want to delete permission %name%?",
+        "deleteConfirmationDescription": "Are you sure you want to delete permission %name%?",
+        "deleteConfirmationConfirm": "Delete",
+        "deleteConfirmationCancel": "Cancel",
+        "create": "Create",
+        "update": "Update",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "loading": "Loading..."
     }
 }

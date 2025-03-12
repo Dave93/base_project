@@ -12,5 +12,29 @@
         "title": "Доступ запрещен",
         "message": "У вас нет разрешения на доступ к этому ресурсу.",
         "backToHome": "Вернуться на главную"
+    },
+    "Permissions": {
+        "title": "Разрешения",
+        "createSuccess": "Разрешение создано",
+        "createError": "Ошибка при создании разрешения",
+        "updateSuccess": "Разрешение обновлено",
+        "updateError": "Ошибка при обновлении разрешения",
+        "deleteSuccess": "Разрешение удалено",
+        "deleteError": "Ошибка при удалении разрешения",
+        "addNew": "Добавить новое",
+        "name": "Название",
+        "code": "Код",
+        "actions": "Действия",
+        "editPermission": "Редактировать разрешение",
+        "createPermission": "Создать разрешение",
+        "deleteConfirmation": "Подтверждение удаления",
+        "deleteConfirmationText": "Вы уверены, что хотите удалить разрешение %name%?",
+        "deleteConfirmationTitle": "Вы уверены, что хотите удалить разрешение %name%?",
+        "deleteConfirmationDescription": "Вы уверены, что хотите удалить разрешение %name%?",
+        "deleteConfirmationConfirm": "Удалить",
+        "deleteConfirmationCancel": "Отменить",
+        "create": "Создать",
+        "update": "Обновить",
+        "loading": "Загрузка..."
     }
 }

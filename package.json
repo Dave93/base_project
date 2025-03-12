@@ -34,6 +34,7 @@
   ],
   "dependencies": {
     "@tailwindcss/postcss": "^4.0.9",
-    "postcss": "^8.5.3"
+    "postcss": "^8.5.3",
+    "zustand": "^5.0.3"
   }
 }

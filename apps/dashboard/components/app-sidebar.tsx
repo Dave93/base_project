@@ -134,6 +134,10 @@ const data = {
           title: "Limits",
           url: "#",
         },
+        {
+          title: "Permissions",
+          url: "/dashboard/permissions",
+        },
       ],
     },
   ],
