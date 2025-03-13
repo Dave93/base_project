@@ -1,6 +1,6 @@
 import ctx from "../../../context";
 import { users } from "@auth-apps/db";
-import { eq } from "@auth-apps/db/src/orm";
+import { eq, sql } from "@auth-apps/db/src/orm";
 import { Elysia, t } from "elysia";
 
 export const userController = new Elysia({
@@ -129,4 +129,231 @@ export const userController = new Elysia({
         };
     }, {
         useAuth: true
+    })
+    // Get all users with pagination
+    .get('/', async ({
+        user,
+        error,
+        db,
+        query: { page = 1, pageSize = 10 }
+    }) => {
+        if (!user) {
+            return error(401, "Unauthorized");
+        }
+
+        const offset = (page - 1) * pageSize;
+        
+        // Get total count using SQL count function
+        const countResult = await db.select({ count: sql`count(*)` }).from(users);
+        const total = Number(countResult[0].count);
+        
+        // Get users for current page
+        const usersList = await db.select({
+            id: users.id,
+            email: users.email,
+            name: users.name,
+            role_id: users.role_id,
+            createdAt: users.createdAt,
+            updatedAt: users.updatedAt
+        })
+            .from(users)
+            .limit(pageSize)
+            .offset(offset)
+            .orderBy(users.createdAt);
+        
+        return {
+            users: usersList,
+            pagination: {
+                total,
+                page,
+                pageSize,
+                totalPages: Math.ceil(total / pageSize)
+            }
+        };
+    }, {
+        query: t.Object({
+            page: t.Optional(t.Numeric()),
+            pageSize: t.Optional(t.Numeric())
+        }),
+        permission: "users.list"
+    })
+    // Get a single user by ID
+    .get('/:id', async ({
+        user,
+        error,
+        db,
+        params: { id }
+    }) => {
+        if (!user) {
+            return error(401, "Unauthorized");
+        }
+
+        const userData = await db.select({
+            id: users.id,
+            email: users.email,
+            name: users.name,
+            role_id: users.role_id,
+            createdAt: users.createdAt,
+            updatedAt: users.updatedAt
+        })
+            .from(users)
+            .where(eq(users.id, id));
+
+        if (userData.length === 0) {
+            return error(404, "User not found");
+        }
+
+        return {
+            user: userData[0]
+        };
+    }, {
+        params: t.Object({
+            id: t.String()
+        }),
+        permission: "users.list"
+    })
+    // Create a new user
+    .post('/', async ({
+        user,
+        error,
+        db,
+        body
+    }) => {
+        if (!user) {
+            return error(401, "Unauthorized");
+        }
+
+        const { email, password, name, role_id } = body;
+
+        // Check if email already exists
+        const existingUser = await db.select({ id: users.id })
+            .from(users)
+            .where(eq(users.email, email));
+
+        if (existingUser.length > 0) {
+            return error(400, "Email already in use");
+        }
+
+        // Hash password
+        const hashedPassword = await Bun.password.hash(password);
+
+        // Create user
+        const newUser = await db.insert(users).values({
+            email,
+            password: hashedPassword,
+            name,
+            role_id
+        }).returning({
+            id: users.id,
+            email: users.email,
+            name: users.name,
+            role_id: users.role_id,
+            createdAt: users.createdAt,
+            updatedAt: users.updatedAt
+        });
+
+        return {
+            user: newUser[0]
+        };
+    }, {
+        body: t.Object({
+            email: t.String(),
+            password: t.String(),
+            name: t.Optional(t.String()),
+            role_id: t.Optional(t.String())
+        }),
+        permission: "users.edit"
+    })
+    // Update a user
+    .put('/:id', async ({
+        user,
+        error,
+        db,
+        params: { id },
+        body
+    }) => {
+        if (!user) {
+            return error(401, "Unauthorized");
+        }
+
+        // Check if user exists
+        const existingUser = await db.select({ id: users.id })
+            .from(users)
+            .where(eq(users.id, id));
+
+        if (existingUser.length === 0) {
+            return error(404, "User not found");
+        }
+
+        const updateData: any = {};
+        
+        // Only update fields that are provided
+        if (body.email !== undefined) updateData.email = body.email;
+        if (body.name !== undefined) updateData.name = body.name;
+        if (body.role_id !== undefined) updateData.role_id = body.role_id;
+        
+        // If password is provided, hash it
+        if (body.password) {
+            updateData.password = await Bun.password.hash(body.password);
+        }
+
+        // Update user
+        const updatedUser = await db.update(users)
+            .set(updateData)
+            .where(eq(users.id, id))
+            .returning({
+                id: users.id,
+                email: users.email,
+                name: users.name,
+                role_id: users.role_id,
+                createdAt: users.createdAt,
+                updatedAt: users.updatedAt
+            });
+
+        return {
+            user: updatedUser[0]
+        };
+    }, {
+        params: t.Object({
+            id: t.String()
+        }),
+        body: t.Object({
+            email: t.Optional(t.String()),
+            password: t.Optional(t.String()),
+            name: t.Optional(t.String()),
+            role_id: t.Optional(t.String())
+        }),
+        permission: "users.edit"
+    })
+    // Delete a user
+    .delete('/:id', async ({
+        user,
+        error,
+        db,
+        params: { id }
+    }) => {
+        if (!user) {
+            return error(401, "Unauthorized");
+        }
+
+        // Check if user exists
+        const existingUser = await db.select({ id: users.id })
+            .from(users)
+            .where(eq(users.id, id));
+
+        if (existingUser.length === 0) {
+            return error(404, "User not found");
+        }
+
+        // Delete user
+        await db.delete(users).where(eq(users.id, id));
+
+        return {
+            success: true
+        };
+    }, {
+        params: t.Object({
+            id: t.String()
+        }),
+        permission: "users.edit"
     });

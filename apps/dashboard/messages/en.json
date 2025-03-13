@@ -38,5 +38,30 @@
         "cancel": "Cancel",
         "delete": "Delete",
         "loading": "Loading..."
+    },
+    "Roles": {
+        "title": "Roles",
+        "createSuccess": "Role created",
+        "createRole": "Create role",
+        "name": "Name",
+        "loading": "Loading...",
+        "code": "Code",
+        "description": "Description",
+        "active": "Active",
+        "actions": "Actions",
+        "editRole": "Edit role",
+        "deleteConfirmation": "Delete confirmation",
+        "deleteConfirmationText": "Are you sure you want to delete role %name%?",
+        "deleteConfirmationTitle": "Are you sure you want to delete role %name%?",
+        "deleteConfirmationDescription": "Are you sure you want to delete role %name%?",
+        "deleteConfirmationConfirm": "Delete",
+        "deleteConfirmationCancel": "Cancel",
+        "create": "Create",
+        "update": "Update",
+        "cancel": "Cancel",
+        "delete": "Delete"
+    },
+    "Pagination": {
+        "loading": "Loading..."
     }
 }

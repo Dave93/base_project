@@ -10,6 +10,7 @@ import {
   PermissionsPagination,
   PermissionFormDialog
 } from "@/components/permissions";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function PermissionsPage() {
   // Clean up store when component unmounts
@@ -39,17 +40,23 @@ export default function PermissionsPage() {
   const permissions = data?.permissions || [];
 
   return (
-    <>
+    <div className="container mx-auto py-6 space-y-6">
       <PermissionsHeader />
 
-      <PermissionsTable
-        permissions={permissions}
-        isLoading={isLoading}
-      />
+      <Card>
+        <CardContent className="p-0">
+          <PermissionsTable
+            permissions={permissions}
+            isLoading={isLoading}
+          />
+        </CardContent>
+      </Card>
 
-      <PermissionsPagination />
+      <div className="flex justify-center">
+        <PermissionsPagination />
+      </div>
 
       <PermissionFormDialog />
-    </>
+    </div>
   );
 }
