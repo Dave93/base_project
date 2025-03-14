@@ -1,8 +1,10 @@
 import { Redis } from "ioredis";
-import { Database } from "../db";
-import { roles, role_permissions, permissions } from "@auth-apps/db/src/schema";
-import { eq, inArray } from "@auth-apps/db/src/orm";
+import { Database } from "../../../../packages/db/src/index";
+import { roles, role_permissions, permissions } from "../../../../packages/db/src/schema.js";
+import { eq, inArray } from "../../../../packages/db/src/orm";
 import ms from "ms";
+import { randomUUIDv7 } from "bun";
+
 export class CacheService {
     constructor(private readonly redis: Redis, private readonly db: Database) {
         this.cacheRoles();
@@ -85,8 +87,8 @@ export class CacheService {
             permissions: string[];
         } | null;
     }, oldRefreshToken: string | null = null) {
-        const accessToken = crypto.randomUUID();
-        const refreshToken = crypto.randomUUID();
+        const accessToken = randomUUIDv7();
+        const refreshToken = randomUUIDv7();
         await this.redis.set(`${process.env.PROJECT_PREFIX}:session:${accessToken}`, JSON.stringify(userData), "PX", ms("2 days"));
 
         if (oldRefreshToken) {

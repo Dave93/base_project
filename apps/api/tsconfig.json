@@ -6,15 +6,15 @@
     "moduleResolution": "bundler",
     "esModuleInterop": true,
     "outDir": "./dist",
-    "rootDir": "./src",
     "types": ["bun-types"],
     "baseUrl": ".",
     "paths": {
-      "@api/*": ["src/*"]
+      "@api/*": ["src/*"],
+      "@auth-apps/db/*": ["../../packages/db/*"]
     },
     "skipLibCheck": true,
     "allowSyntheticDefaultImports": true
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "../../packages/db/src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

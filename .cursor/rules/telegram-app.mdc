@@ -12,21 +12,20 @@ This guide outlines best practices for building Telegram bots using Telegraf, Re
 ### 1. Initialize Project
 
 ```bash
-mkdir telegram-bot
-cd telegram-bot
+cd telegram
 bun init
 ```
 
 ### 2. Install Dependencies
 
 ```bash
-bun add telegraf telegraf-session-redis redis @elysiajs/eden elysia
+bun add telegraf telegraf-session-redis ioredis @elysiajs/eden elysia
 ```
 
 ## Project Structure
 
 ```
-telegram-bot/
+telegram/
 ├── src/
 │   ├── bot/
 │   │   ├── commands/
@@ -84,9 +83,7 @@ const redisSession = new RedisSession({
   store: {
     host: config.redis.host,
     port: config.redis.port,
-    password: config.redis.password,
-    // TTL in seconds for session, optional
-    ttl: 24 * 60 * 60,
+    password: config.redis.password
   },
 });
 
@@ -102,47 +99,12 @@ export { bot };
 Create `src/api/client.ts`:
 
 ```typescript
-import { edenTreaty } from "@elysiajs/eden";
-import { config } from "../config";
+import { treaty } from '@elysiajs/eden'
+import type { App } from '../../api/src/app'
 
-// Define your API types
-export type User = {
-  id: number;
-  name: string;
-  email: string;
-};
+const edenClient = treaty<App>(config.api.baseUrl);
 
-// Define your API routes
-export type AppRouter = {
-  "/users": {
-    get: {
-      query: { id?: number };
-      response: User[];
-    };
-    post: {
-      body: Omit<User, "id">;
-      response: User;
-    };
-  };
-  "/users/:id": {
-    get: {
-      params: { id: number };
-      response: User;
-    };
-    put: {
-      params: { id: number };
-      body: Partial<Omit<User, "id">>;
-      response: User;
-    };
-    delete: {
-      params: { id: number };
-      response: { success: boolean };
-    };
-  };
-};
-
-// Create the API client
-export const api = edenTreaty<AppRouter>(config.api.baseUrl);
+export edenClient;
 ```
 
 ## Creating Bot Commands
@@ -151,12 +113,12 @@ Create `src/bot/commands/start.ts`:
 
 ```typescript
 import { Context } from "telegraf";
-import { api } from "../../api/client";
+import { edenClient } from "../../api/client";
 
 export async function startCommand(ctx: Context) {
   try {
     // Get user information from API
-    const users = await api["/users"].get({ query: { id: 1 } });
+    const users = await edenClient.api.v1.users.get({ query: { id: 1 } });
 
     if (users.data && users.data.length > 0) {
       const user = users.data[0];
@@ -240,37 +202,8 @@ export { bot };
 
 Create `src/index.ts`:
 
-```typescript
-import { Elysia } from "elysia";
-import { bot } from "./bot";
-import { config } from "./config";
 
-// Start the bot
-bot
-  .launch()
-  .then(() => {
-    console.log("Bot started successfully");
-  })
-  .catch((err) => {
-    console.error("Failed to start bot:", err);
-  });
-
-// Create HTTP server with Elysia
-const app = new Elysia()
-  .get("/", () => "Telegram Bot Server is running")
-  .get("/health", () => ({ status: "ok" }))
-  .listen(process.env.PORT || 3000);
-
-console.log(
-  `HTTP server is running at ${app.server?.hostname}:${app.server?.port}`
-);
-
-// Enable graceful stop
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
-```
-
-## Webhook Setup (Alternative to Long Polling)
+## Webhook Setup
 
 For production environments, you might want to use webhooks instead of long polling:
 

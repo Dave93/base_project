@@ -1,40 +1,54 @@
 ---
 description: API for backend application with Elysia.js
-globs: apps/api/**/*.(ts|tsx)
+globs: apps/api/**/*.ts
 alwaysApply: false
 ---
 # Backend Rules for Cursor
 
 ## Technology Stack
 
-- ElysiaJS (v1.2.21) - Fast and type-safe web framework
+- ElysiaJS (v1.2.25) - Fast and type-safe web framework
 - Drizzle ORM (v0.39.1) - Type-safe ORM for PostgreSQL
-- Redis (via ioredis v5.3.2) - For session management
+- Redis (via ioredis v5.3.2) - For session management and caching
 - PostgreSQL (via postgres.js v3.4.3) - Main database
 - Node.js Cluster - For multi-core utilization
+- Bun - JavaScript runtime and package manager
 
 ## Project Structure
 
 ```
 .
-├── src/
-│   ├── plugins/
-│   │   ├── auth.ts       # Authentication plugin with useAuth macro
-│   │   └── index.ts      # Plugin exports
-│   ├── services/
-│   │   ├── user.ts       # User service logic
-│   │   └── session.ts    # Session service logic
-│   ├── models/
-│   │   └── schema.ts     # Drizzle schema definitions (imports from packages/db)
-│   ├── db/
-│   │   ├── migrations/   # Database migrations
-│   │   └── index.ts      # Database and Redis connections
-│   └── index.ts          # Main application entry point
-├── drizzle/              # Generated migrations
-├── drizzle.config.ts     # Drizzle configuration
-├── package.json          # Dependencies and scripts
-├── tsconfig.json         # TypeScript configuration
-└── .env                  # Environment variables
+├── apps/
+│   └── api/
+│       ├── src/
+│       │   ├── controllers/
+│       │   │   └── v1/
+│       │   │       ├── users/
+│       │   │       │   ├── controller.ts    # User controller
+│       │   │       │   └── user.dto.ts      # User DTOs
+│       │   │       ├── roles/
+│       │   │       ├── permissions/
+│       │   │       └── index.ts             # V1 API routes
+│       │   ├── services/
+│       │   │   ├── cache.ts                 # Cache service
+│       │   │   └── index.ts                 # Service exports
+│       │   ├── connections.ts               # Redis connection
+│       │   ├── context.ts                   # Elysia context with auth
+│       │   ├── app.ts                       # Main app setup
+│       │   └── index.ts                     # Entry point with cluster
+│       ├── package.json                     # API dependencies
+│       └── tsconfig.json                    # TypeScript config
+├── packages/
+│   └── db/
+│       ├── src/
+│       │   ├── migrations/                  # Database migrations
+│       │   ├── schema.ts                    # Drizzle schema definitions
+│       │   ├── orm.ts                       # ORM exports
+│       │   └── index.ts                     # Database connection
+│       ├── drizzle.config.ts                # Drizzle configuration
+│       └── package.json                     # DB package dependencies
+├── package.json                             # Root dependencies
+└── tsconfig.json                            # Root TypeScript config
 ```
 
 ## ElysiaJS Best Practices
@@ -44,32 +58,45 @@ alwaysApply: false
 MUST use method chaining for type safety:
 
 ```typescript
-new Elysia().use(cors()).use(cookie()).use(auth).listen(3000);
+new Elysia()
+  .use(cors())
+  .use(cookie())
+  .use(v1Controller)
+  .listen(3000);
 ```
 
-### Plugin Structure
+### Controller Structure
 
-Each plugin should be a separate Elysia instance:
+Each controller should be a separate Elysia instance with a specific prefix:
 
 ```typescript
-// src/plugins/auth.ts
-export const auth = new Elysia({ name: "auth" })
-  .state("sessions", {} as Record<string, any>)
+// apps/api/src/controllers/v1/users/controller.ts
+export const userController = new Elysia({
+  name: "@api/v1/users",
+  prefix: "/users"
+})
+  .use(ctx)
+  .post("/login", async ({ body, db, error, cacheService, cookie }) => {
+    // Controller logic
+  });
+```
+
+### Context Setup
+
+Use a shared context for common functionality:
+
+```typescript
+// apps/api/src/context.ts
+const ctx = new Elysia({
+  name: "@app/ctx"
+})
+  .decorate("db", db)
+  .decorate("redis", redis)
+  .decorate("cacheService", new CacheService(redis, db))
   .macro({
     useAuth(enabled: boolean = true) {
-      if (!enabled) return;
-
-      return {
-        beforeHandle: async ({ cookie, set, error }) => {
-          const token = cookie.session;
-          if (!token) {
-            set.status = 403;
-            throw error(403, "Unauthorized");
-          }
-          // ... session validation
-        },
-      };
-    },
+      // Authentication macro implementation
+    }
   });
 ```
 
@@ -87,15 +114,14 @@ new Elysia().onError(({ error, code }) => {
 
 ### Type Safety
 
-1. Use TypeScript decorators for type definitions
+1. Use TypeScript for type definitions
 2. Define models using Elysia's type system:
 
 ```typescript
 .model({
-  session: t.Object({
-    token: t.String(),
-    userId: t.String(),
-    data: t.Record(t.String(), t.Any())
+  user: t.Object({
+    email: t.String(),
+    password: t.String()
   })
 })
 ```
@@ -105,73 +131,96 @@ new Elysia().onError(({ error, code }) => {
 ```json
 {
   "dependencies": {
+    "@auth-apps/db": "workspace:*",
     "@elysiajs/cookie": "^0.8.0",
     "@elysiajs/cors": "^1.2.0",
     "@elysiajs/swagger": "^1.2.2",
     "drizzle-orm": "^0.39.1",
-    "elysia": "^1.2.21",
+    "elysia": "^1.2.25",
     "ioredis": "^5.3.2",
+    "ms": "^2.1.3",
     "postgres": "^3.4.3"
   },
   "devDependencies": {
+    "@types/bun": "^1.2.4",
+    "@types/ms": "^2.1.0",
     "@types/node": "^20.11.19",
     "bun-types": "latest",
-    "typescript": "^5.3.3"
+    "eslint": "^8.56.0",
+    "typescript": "^5.8.2"
   }
 }
 ```
 
 ## Database Schema Rules
 
-1. Database schema and connections MUST be imported from packages/db
-2. Session table must include:
-   - token (primary key)
-   - userId
-   - data (JSON stringified)
-   - isValid flag
-   - timestamps (createdAt, updatedAt)
+1. Database schema and connections MUST be in a separate package (packages/db)
+2. Schema should include type exports using Drizzle's $inferSelect and $inferInsert
+3. Common schema should include:
+   - users (with authentication fields)
+   - roles (for role-based access control)
+   - permissions (for granular permissions)
+   - role_permissions (for many-to-many relationship)
 
 ```typescript
-// src/models/schema.ts
-import { sessions } from "packages/db/schema";
+// packages/db/src/schema.ts
+export const users = pgTable("users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(),
+  password: text("password").notNull(),
+  name: text("name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  role_id: uuid("role_id").references(() => roles.id),
+});
 
-// Re-export the schema
-export { sessions };
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
 ```
 
 ## Authentication Rules
 
 1. The `useAuth` macro must:
-   - Be implemented as an Elysia plugin
+   - Be implemented in the context.ts file
    - Accept an `enabled` boolean parameter
    - Check session token from cookie if enabled
    - Verify session existence in Redis
-   - Add session data to context if valid
+   - Add user data to context if valid
    - Return 403 error if unauthorized
 
 ```typescript
 // Example usage in routes
 app.get(
   "/protected",
-  ({ session }) => ({ message: "Protected route", session }),
-  { beforeHandle: ({ useAuth }) => useAuth({ enabled: true }) }
+  ({ user }) => ({ message: "Protected route", user }),
+  { beforeHandle: ({ useAuth }) => useAuth() }
 );
 ```
 
-## Service Layer Rules
+## Cache Service Rules
 
-1. Each service should be a separate Elysia plugin
-2. Services should handle business logic
-3. Services should be stateless
-4. Services should use dependency injection
-
-Example:
+1. Cache service should:
+   - Handle caching of frequently accessed data (roles, permissions)
+   - Provide methods for session management
+   - Use Redis for storage
+   - Include proper error handling
 
 ```typescript
-// src/services/session.ts
-export const sessionService = new Elysia({ name: "session-service" })
-  .decorate("redis", redis)
-  .decorate("db", db);
+// apps/api/src/services/cache.ts
+export class CacheService {
+  constructor(private readonly redis: Redis, private readonly db: Database) {
+    this.cacheRoles();
+    this.cachePermissions();
+  }
+
+  async cacheRoles() {
+    // Implementation
+  }
+
+  async setUserSession(userData: UserData) {
+    // Implementation
+  }
+}
 ```
 
 ## Cluster Configuration Rules
@@ -184,12 +233,36 @@ export const sessionService = new Elysia({ name: "session-service" })
    - Have its own Redis connection
    - Listen on the same port
 
+```typescript
+// apps/api/src/index.ts
+import cluster from "node:cluster";
+import { cpus } from "node:os";
+
+const numCPUs = cpus().length;
+
+if (cluster.isPrimary) {
+  console.log(`Primary ${process.pid} is running`);
+
+  for (let i = 0; i < numCPUs; i++) {
+    cluster.fork();
+  }
+
+  cluster.on("exit", (worker, code, signal) => {
+    console.log(`Worker ${worker.process.pid} died`);
+    cluster.fork();
+  });
+} else {
+  app.listen(process.env.PORT || 3000);
+}
+```
+
+
 ## Environment Variables Rules
 
 Required environment variables:
 
 ```env
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/elysia_db
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/auth_apps
 REDIS_URL=redis://localhost:6379
 PORT=3000
 NODE_ENV=development
@@ -197,33 +270,40 @@ NODE_ENV=development
 
 ## Database Connection Rules
 
-1. PostgreSQL connection MUST be imported from packages/db:
+1. PostgreSQL connection MUST be in packages/db:
 
 ```typescript
-// src/db/index.ts
-import { db } from "packages/db";
-import { Redis } from "ioredis";
+// packages/db/src/index.ts
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import * as schema from "./schema";
 
-// Only create Redis connection in this file
-const redis = new Redis(process.env.REDIS_URL);
-
-export { db, redis };
+const connectionString = process.env.DATABASE_URL;
+const client = postgres(connectionString, { max: 10 });
+export const db = drizzle(client, { schema });
+export type Database = typeof db;
 ```
 
-2. The packages/db module should:
-
-   - Export the database connection
-   - Export the schema
-   - Handle connection pooling
-   - Handle connection errors gracefully
-   - Be configured per worker
-   - Use Drizzle ORM for type safety
-
-3. Redis connection must:
+2. Redis connection must:
+   - Be in a separate connections.ts file
    - Handle connection failures
    - Implement reconnection strategy
-   - Be configured per worker
    - Use ioredis for type safety
+
+```typescript
+// apps/api/src/connections.ts
+import { Redis } from "ioredis";
+
+const redis = new Redis(process.env.REDIS_URL, {
+  keyPrefix: "auth-apps-api:",
+});
+
+redis.on("error", (err) => {
+  console.error("Redis connection error:", err);
+});
+
+export { redis };
+```
 
 ## Error Handling Rules
 
@@ -253,12 +333,17 @@ export { db, redis };
    - Encrypted in transit
    - Stored securely in Redis
    - Properly invalidated when needed
+  
+3. Implement role-based access control:
+   - Use roles and permissions tables
+   - Cache roles and permissions in Redis
+   - Check permissions before handling requests
 
 ## Development Rules
 
 1. Use TypeScript for type safety
 2. Follow Elysia's method chaining pattern
-3. Implement proper logging
+3. Use Redis for session management and caching
 4. Follow consistent code formatting
 5. Document all major components
 6. Use Elysia's plugin system for modularity

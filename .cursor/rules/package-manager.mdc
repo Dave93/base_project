@@ -1,6 +1,6 @@
 ---
 description: Package manager rules
-globs: **/*.(ts|tsx|json)
+globs: 
 alwaysApply: false
 ---
 # Package Manager Rules
@@ -20,12 +20,6 @@ This project uses **bun.js** as the exclusive package manager. All package opera
    - Running scripts: `bun run <script-name>`
 
 2. **Never use npm, yarn, or pnpm commands** in this project.
-
-3. **For shadcn components:**
-
-   - When the shadcn CLI suggests using npm, yarn, or pnpm, always translate the commands to bun equivalents.
-   - Example: If shadcn suggests `npx shadcn-ui@latest add button`, use `bunx shadcn-ui@latest add button` instead.
-   - For shadcn installation: `bunx shadcn-ui@latest init`
 
 4. **Dependency management:**
 
@@ -47,30 +41,9 @@ This project uses **bun.js** as the exclusive package manager. All package opera
 | Run a script         | `bun run <script>` | `npm run <script>`             |
 | Execute a package    | `bunx <pkg>`       | `npx <pkg>`                    |
 
-## Shadcn with Bun
-
-When using shadcn UI components with bun:
-
-1. Initialize shadcn with bun:
-
-   ```bash
-   bunx shadcn-ui@latest init
-   ```
-
-2. Add components with bun:
-
-   ```bash
-   bunx shadcn-ui@latest add button
-   bunx shadcn-ui@latest add card
-   # etc.
-   ```
-
-3. For any shadcn documentation that references npm/yarn/pnpm, mentally substitute with the bun equivalent.
 
 ## Troubleshooting
 
 If you encounter issues with bun and shadcn integration:
 
 1. Ensure you're using the latest version of bun: `bun upgrade`
-2. Check that shadcn-ui is compatible with your current setup
-3. For specific component issues, refer to the shadcn documentation and translate npm commands to bun
