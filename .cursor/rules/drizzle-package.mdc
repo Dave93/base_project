@@ -1,6 +1,6 @@
 ---
 description: Best Practices for database management with drizzle-orm
-globs: packages/db/**/*.ts
+globs: 
 alwaysApply: false
 ---
 # Cursor Rules for DB Package with Drizzle ORM
@@ -79,6 +79,24 @@ packages/db/
 2. **Review the generated SQL files** in the `src/migrations` directory.
 
 3. **For data tables that should be hypertables:**
+   - Tables like orders, order_actions, order_items, courier_tracking_locations and so on could be hypertable
+   - For hypertables schema should create composite primary key that contains also time_column_name
+     Example schema:
+      ```typescript
+      export const productCookingTime = pgTable('product_cooking_time', {
+        id: uuid('id').defaultRandom().notNull(),
+        restorauntGroup: varchar('restoraunt_group', { length: 255 }).notNull(),
+        cookingPlace: varchar('cooking_place', { length: 255 }).notNull(),
+        dishName: varchar('dish_name', { length: 255 }).notNull(),
+        openTime: timestamp('open_time', { mode: 'string' }).notNull(),
+        cookingFinishTime: timestamp('cooking_finish_time', { mode: 'string' }),
+        dishAmountInt: integer('dish_amount_int').notNull(),
+        guestWaitTimeAvg: integer('guest_wait_time_avg').notNull(),
+        openDateTyped: timestamp('open_date_typed', { mode: 'string' }).notNull(),
+      }, (table) => [
+        primaryKey({ columns: [table.id, table.openDateTyped] }),
+      ]);
+      ```
    - Edit the generated SQL migration file
    - Add the SQL command to convert the table to a hypertable after the table creation
    - Example:
