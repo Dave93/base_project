@@ -1,6 +1,6 @@
 ---
-description: API for backend application with Elysia.js
-globs: 
+description: 
+globs: apps/api/**/*.ts
 alwaysApply: false
 ---
 # Backend Rules for Cursor

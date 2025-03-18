@@ -1,7 +1,7 @@
 ---
-description: Package manager rules
+description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 # Package Manager Rules
 

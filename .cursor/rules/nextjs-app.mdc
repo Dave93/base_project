@@ -1,6 +1,6 @@
 ---
-description: Best Practices for Next.js with App Router
-globs: 
+description: 
+globs: apps/web/**/*.ts,apps/web/**/*.tsx,apps/dashboard/**/*.ts,apps/dashboard/**/*.tsx
 alwaysApply: false
 ---
 # Next.js Website Development Rules

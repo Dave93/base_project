@@ -1,6 +1,6 @@
 ---
-description: Best Practices for database management with drizzle-orm
-globs: 
+description: 
+globs: packages/db/**/*.ts
 alwaysApply: false
 ---
 # Cursor Rules for DB Package with Drizzle ORM
